@@ -3,7 +3,7 @@ import re
 import pandas as pd
 from loren_frank_data_processing.core import logger
 
-def multiunit_to_spykshrk(mu_times, ntrode_keys):
+def multiunit_to_spykshrk(mu_times, ntrode_keys=[]):
     '''converting Eric DeNovellis dataframe format to spykshrk format
 
     Parameters
@@ -20,8 +20,7 @@ def multiunit_to_spykshrk(mu_times, ntrode_keys):
     for introde, ntrode_key in enumerate(ntrode_keys):
         # format time multiindex
         try:
-            ntrode = ntrode_key[-1]
-            testmu = mu_times[ntrode-1].astype('int16')
+            testmu = mu_times[introde].astype('int16')
         except AttributeError:
             logger.warning('Failed to load mu from: {0}'.format(
                 ntrode_key))
@@ -64,7 +63,10 @@ def linear_position_to_spykshrk(position_df,ntrode_key):
     tetpos : multiindex dataframe
 
     '''
-    testpos = position_df[['linear_distance', 'speed', 'labeled_segments']]
+    tospykshrk = {2:1, 0:2, 1:3, 3:4, 4:5}
+    position_df['spykshrk_seg'] = position_df.track_segment_id.map(tospykshrk)
+    
+    testpos = position_df[['linear_distance', 'speed', 'spykshrk_seg']]
     testpos.columns= ['linpos_flat', 'linvel_flat', 'seg_idx']
     testpos['time'] = testpos.index.total_seconds()
     testpos['timestamp'] = testpos.time.apply(lambda row: (row*1e5)).astype('uint64')
@@ -72,6 +74,8 @@ def linear_position_to_spykshrk(position_df,ntrode_key):
     testpos['epoch'] = ntrode_key[2]
     testpos.set_index(['day', 'epoch', 'timestamp', 'time'], append=False, inplace=True)
     testpos = testpos.reorder_levels(['day', 'epoch', 'timestamp', 'time'])
+
+    
     return testpos
 
 def ripples_to_spykshrk(ripple_times, day, epoch):
@@ -96,5 +100,25 @@ def ripples_to_spykshrk(ripple_times, day, epoch):
     ripple_times['maxthresh'] = 4
     ripple_times = ripple_times.set_index(
         ['day', 'epoch', 'event', 'time'])[['starttime', 'endtime', 'maxthresh']]
+    ripple_times.index.set_levels(levels = range(1, len(ripple_times)+1), level='event', inplace=True)
 
     return ripple_times
+
+# def get_all_below_threshold(self, threshold):
+#     ind = np.nonzero(np.all(self.values < threshold, axis=1))
+#     return self.iloc[ind]
+# def get_any_above_threshold(self, threshold):
+#     ind = np.nonzero(np.any(self.values > threshold, axis=1))
+#     return self.iloc[ind]
+# def get_all_above_threshold(self, threshold):
+#     ind = np.nonzero(np.all(self.values > threshold, axis=1))
+#     return self.iloc[ind]
+# # sampling rate is 1e5 because legacy nspike still haunts us
+# ca1_spyk_marks = get_all_above_threshold(ca1_spyk_marks, 0)
+# ca1_spyk_marks = get_any_above_threshold(ca1_spyk_marks, 100)
+# ca1_spyk_marks = get_all_below_threshold(ca1_spyk_marks, 2000)
+
+# mec_spyk_marks = SpikeFeatures.create_default(mec_spyks, sampling_rate=1e5)
+# mec_spyk_marks = get_all_above_threshold(mec_spyk_marks, 0)
+# mec_spyk_marks = get_any_above_threshold(mec_spyk_marks, 100)
+# mec_spyk_marks = get_all_below_threshold(mec_spyk_marks, 2000)
