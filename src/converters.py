@@ -3,6 +3,7 @@ import re
 import pandas as pd
 from loren_frank_data_processing.core import logger
 
+
 def multiunit_to_spykshrk(mu_times, ntrode_keys=[]):
     '''converting Eric DeNovellis dataframe format to spykshrk format
 
@@ -28,29 +29,34 @@ def multiunit_to_spykshrk(mu_times, ntrode_keys=[]):
 
         testmu['time'] = np.round(testmu.index.total_seconds(), decimals=5)
         testmu.drop_duplicates(subset='time', inplace=True)
-        testmu['timestamp'] = testmu.time.apply(lambda row: (row*1e5)).astype('uint64') #in ns
+        testmu['timestamp'] = testmu.time.apply(
+            lambda row: (row * 1e5)).astype('uint64')  # in ns
         testmu.set_index(['time', 'timestamp'], inplace=True)
         num_channels = testmu.shape[1]
-        channel_names = ['c{chan:02d}'.format(chan=chan) for chan in range(0,num_channels)]
+        channel_names = ['c{chan:02d}'.format(
+            chan=chan) for chan in range(0, num_channels)]
         testmu.columns = channel_names
-        ### re-label channels to c00, c01, c02 .. cn
-        # testmu.rename(columns=lambda x: 'c%02d' % (int(re.findall(r'\d+',x)[0])-1), inplace=True)
 
         # join ntrode info
         testmu['day'] = ntrode_key[1]
         testmu['epoch'] = ntrode_key[2]
         testmu['elec_grp_id'] = ntrode_key[3]
-        testmu.set_index(['day', 'epoch', 'elec_grp_id'], append=True, inplace=True)
-        testmu = testmu.reorder_levels(['day', 'epoch', 'elec_grp_id', 'timestamp', 'time'])
+        testmu.set_index(['day', 'epoch', 'elec_grp_id'],
+                         append=True, inplace=True)
+        testmu = testmu.reorder_levels(
+            ['day', 'epoch', 'elec_grp_id', 'timestamp', 'time'])
         allmu.append(testmu)
     spyk_marks_df = pd.concat(allmu)
-    any_duplicates = spyk_marks_df[spyk_marks_df.index.duplicated(keep='first')].size
+    any_duplicates = spyk_marks_df[spyk_marks_df.index.duplicated(
+        keep='first')].size
     if any_duplicates > 0:
         logger.warning('duplicates removed: {0}'.format(any_duplicates))
-        spyk_marks_df = spyk_marks_df[~spyk_marks_df.index.duplicated(keep='first')]
+        spyk_marks_df = spyk_marks_df[~spyk_marks_df.index.duplicated(
+            keep='first')]
     return spyk_marks_df
 
-def linear_position_to_spykshrk(position_df,ntrode_key):
+
+def linear_position_to_spykshrk(position_df, ntrode_key):
     '''converting Eric DeNovellis dataframe format to spykshrk format
 
     Parameters
@@ -63,20 +69,22 @@ def linear_position_to_spykshrk(position_df,ntrode_key):
     tetpos : multiindex dataframe
 
     '''
-    tospykshrk = {2:1, 0:2, 1:3, 3:4, 4:5}
+    tospykshrk = {2: 1, 0: 2, 1: 3, 3: 4, 4: 5}
     position_df['spykshrk_seg'] = position_df.track_segment_id.map(tospykshrk)
-    
+
     testpos = position_df[['linear_distance', 'speed', 'spykshrk_seg']]
-    testpos.columns= ['linpos_flat', 'linvel_flat', 'seg_idx']
+    testpos.columns = ['linpos_flat', 'linvel_flat', 'seg_idx']
     testpos['time'] = testpos.index.total_seconds()
-    testpos['timestamp'] = testpos.time.apply(lambda row: (row*1e5)).astype('uint64')
+    testpos['timestamp'] = testpos.time.apply(
+        lambda row: (row*1e5)).astype('uint64')
     testpos['day'] = ntrode_key[1]
     testpos['epoch'] = ntrode_key[2]
-    testpos.set_index(['day', 'epoch', 'timestamp', 'time'], append=False, inplace=True)
+    testpos.set_index(['day', 'epoch', 'timestamp', 'time'],
+                      append=False, inplace=True)
     testpos = testpos.reorder_levels(['day', 'epoch', 'timestamp', 'time'])
 
-    
     return testpos
+
 
 def ripples_to_spykshrk(ripple_times, day, epoch):
     '''converting Eric DeNovellis dataframe format to spykshrk format
@@ -98,27 +106,10 @@ def ripples_to_spykshrk(ripple_times, day, epoch):
     ripple_times['day'] = day
     ripple_times['epoch'] = epoch
     ripple_times['maxthresh'] = 4
+    ripplecols = ['starttime', 'endtime', 'maxthresh']
     ripple_times = ripple_times.set_index(
-        ['day', 'epoch', 'event', 'time'])[['starttime', 'endtime', 'maxthresh']]
-    ripple_times.index.set_levels(levels = range(1, len(ripple_times)+1), level='event', inplace=True)
+        ['day', 'epoch', 'event', 'time'])[ripplecols]
+    ripple_times.index.set_levels(levels=range(
+        1, len(ripple_times)+1), level='event', inplace=True)
 
     return ripple_times
-
-# def get_all_below_threshold(self, threshold):
-#     ind = np.nonzero(np.all(self.values < threshold, axis=1))
-#     return self.iloc[ind]
-# def get_any_above_threshold(self, threshold):
-#     ind = np.nonzero(np.any(self.values > threshold, axis=1))
-#     return self.iloc[ind]
-# def get_all_above_threshold(self, threshold):
-#     ind = np.nonzero(np.all(self.values > threshold, axis=1))
-#     return self.iloc[ind]
-# # sampling rate is 1e5 because legacy nspike still haunts us
-# ca1_spyk_marks = get_all_above_threshold(ca1_spyk_marks, 0)
-# ca1_spyk_marks = get_any_above_threshold(ca1_spyk_marks, 100)
-# ca1_spyk_marks = get_all_below_threshold(ca1_spyk_marks, 2000)
-
-# mec_spyk_marks = SpikeFeatures.create_default(mec_spyks, sampling_rate=1e5)
-# mec_spyk_marks = get_all_above_threshold(mec_spyk_marks, 0)
-# mec_spyk_marks = get_any_above_threshold(mec_spyk_marks, 100)
-# mec_spyk_marks = get_all_below_threshold(mec_spyk_marks, 2000)
